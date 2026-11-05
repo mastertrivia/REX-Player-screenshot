@@ -73,7 +73,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface as M3Surface
 import xyz.mpv.rex.ui.player.controls.components.glassSurface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -473,17 +472,21 @@ fun PlayerControls(
         val floatingScreenshotChip = createRef()
         val captureFlash = createRef()
 
-        M3Surface(
-          color = Color.White.copy(alpha = captureFlashAlpha),
-          modifier = Modifier
-            .fillMaxSize()
-            .constrainAs(captureFlash) {
-              start.linkTo(parent.start)
-              end.linkTo(parent.end)
-              top.linkTo(parent.top)
-              bottom.linkTo(parent.bottom)
-            },
-        ) {}
+        // Draw-only flash. Material3 Surface installs an empty pointerInput, which would swallow
+        // every tap and keep GestureHandler from ever showing chrome.
+        if (captureFlashAlpha > 0f) {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(Color.White.copy(alpha = captureFlashAlpha))
+              .constrainAs(captureFlash) {
+                start.linkTo(parent.start)
+                end.linkTo(parent.end)
+                top.linkTo(parent.top)
+                bottom.linkTo(parent.bottom)
+              },
+          )
+        }
 
         val bottomControlsBelowSeekbar by playerPreferences.bottomControlsBelowSeekbar.collectAsState()
         val playbackControlsPosition by playerPreferences.playbackControlsPosition.collectAsState()
