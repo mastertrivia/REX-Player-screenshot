@@ -1,4 +1,5 @@
 import com.android.build.api.variant.FilterConfiguration
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -50,7 +51,7 @@ android {
     create("release") {
       val keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
       if (keystorePropertiesFile.exists()) {
-        val keystoreProperties = java.util.Properties()
+        val keystoreProperties = Properties()
         keystoreProperties.load(keystorePropertiesFile.inputStream())
         storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
         storePassword = keystoreProperties.getProperty("storePassword")
