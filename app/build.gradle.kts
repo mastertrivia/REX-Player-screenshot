@@ -14,7 +14,7 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "xyz.mpv.rex"
+    applicationId = "xyz.mpv.rex.fork"
     minSdk = 26
     targetSdk = 36
     versionCode = 216
@@ -41,14 +41,23 @@ android {
     abi {
       isEnable = true
       reset()
-      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-      isUniversalApk = true
+      include("arm64-v8a")
+      isUniversalApk = false
     }
   }
 
   signingConfigs {
     create("release") {
-      if (project.hasProperty("releaseKeyStore")) {
+      val keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
+      if (keystorePropertiesFile.exists()) {
+        val keystoreProperties = java.util.Properties()
+        keystoreProperties.load(keystorePropertiesFile.inputStream())
+        storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+        storePassword = keystoreProperties.getProperty("storePassword")
+        keyAlias = keystoreProperties.getProperty("keyAlias")
+        keyPassword = keystoreProperties.getProperty("keyPassword")
+        storeType = keystoreProperties.getProperty("storeType") ?: "pkcs12"
+      } else if (project.hasProperty("releaseKeyStore")) {
         storeFile = file(project.property("releaseKeyStore") as String)
         storePassword = project.property("releaseKeyStorePassword") as String
         keyAlias = project.property("releaseKeyAlias") as String
@@ -59,7 +68,8 @@ android {
 
   buildTypes {
     named("release") {
-      if (project.hasProperty("releaseKeyStore")) {
+      val hasForkKeystore = rootProject.file("keystore/keystore.properties").exists()
+      if (hasForkKeystore || project.hasProperty("releaseKeyStore")) {
         signingConfig = signingConfigs.getByName("release")
       }
       isMinifyEnabled = true

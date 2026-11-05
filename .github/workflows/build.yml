@@ -30,31 +30,28 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build with Gradle
+      - name: Build signed arm64 APK
         run: ./gradlew assembleRelease
 
-      - name: Upload app-arm64-v8a Artifact
+      - name: Verify APK is signed
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          UNSIGNED="app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk"
+          if [ ! -f "$APK" ]; then
+            echo "Signed APK was not produced"
+            ls -lah app/build/outputs/apk/release || true
+            if [ -f "$UNSIGNED" ]; then
+              echo "Only an unsigned APK exists; signing is required for install"
+            fi
+            exit 1
+          fi
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify --verbose "$APK"
+          ls -lh "$APK"
+
+      - name: Upload signed arm64 APK
         uses: actions/upload-artifact@v4
         with:
-          name: REX-Player-arm64-v8a-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
-      - name: Upload app-armeabi-v7a Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-armeabi-v7a-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
-      - name: Upload app-universal Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-universal-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-universal-release-unsigned.apk
-      - name: Upload app-x86 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-x86-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-x86-release-unsigned.apk
-      - name: Upload app-x86_64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-x86_64-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-x86_64-release-unsigned.apk
+          name: REX-Player-arm64-v8a-release-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
