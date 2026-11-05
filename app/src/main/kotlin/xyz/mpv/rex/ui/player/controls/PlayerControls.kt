@@ -22,6 +22,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
@@ -57,7 +58,10 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.outlined.DragIndicator
 import xyz.mpv.rex.ui.player.controls.components.ControlsGroup
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +84,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -91,6 +97,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -98,6 +107,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -107,6 +117,7 @@ import xyz.mpv.rex.preferences.AppearancePreferences
 import xyz.mpv.rex.preferences.AudioPreferences
 import xyz.mpv.rex.preferences.GesturePreferences
 import xyz.mpv.rex.preferences.PlayerPreferences
+import xyz.mpv.rex.preferences.ScreenshotCaptureIcon
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.preferences.preference.deleteAndGet
 import xyz.mpv.rex.preferences.preference.plusAssign
@@ -124,6 +135,7 @@ import xyz.mpv.rex.ui.player.VideoAspect
 import xyz.mpv.rex.ui.player.controls.components.BrightnessSlider
 import xyz.mpv.rex.ui.player.controls.components.CompactSpeedIndicator
 import xyz.mpv.rex.ui.player.controls.components.ControlsButton
+import xyz.mpv.rex.ui.player.controls.components.GestureSpeedPlayerUpdate
 import xyz.mpv.rex.ui.player.controls.components.LockHint
 import xyz.mpv.rex.ui.player.controls.components.MultipleSpeedPlayerUpdate
 import xyz.mpv.rex.ui.player.controls.components.PromptResumePlayerUpdate
@@ -256,6 +268,7 @@ fun PlayerControls(
     derivedStateOf { abs((playbackSpeed ?: 1f) - 1f) > 0.001f }
   }
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
+  val interfaceAutoHideOnResume by playerPreferences.interfaceAutoHideOnResume.collectAsState()
   val chapters by viewModel.chapters.collectAsState(persistentListOf())
   val bookmarks by viewModel.bookmarks.collectAsState(persistentListOf())
   val playlist by viewModel.playlistManager.playlist.collectAsState()
@@ -268,7 +281,22 @@ fun PlayerControls(
   val abLoopB by viewModel.abLoopB.collectAsState()
   val isABLoopExpanded by viewModel.isABLoopExpanded.collectAsState()
   val isFrameNavigationExpanded by viewModel.isFrameNavigationExpanded.collectAsState()
+  val isScreenshotChipVisible by viewModel.isScreenshotChipVisible.collectAsState()
   val isSnapshotLoading by viewModel.isSnapshotLoading.collectAsState()
+  var captureFlashVisible by remember { mutableStateOf(false) }
+  val captureFlashAlpha by animateFloatAsState(
+    targetValue = if (captureFlashVisible) 0.72f else 0f,
+    animationSpec = tween(durationMillis = 90),
+    label = "captureFlash",
+  )
+
+  LaunchedEffect(viewModel) {
+    viewModel.snapshotCaptured.collect {
+      captureFlashVisible = true
+      delay(90)
+      captureFlashVisible = false
+    }
+  }
 
   val isGestureSeeking by viewModel.isGestureSeeking.collectAsState()
   val isVerticalGestureActive by viewModel.isVerticalGestureActive.collectAsState()
@@ -355,16 +383,11 @@ fun PlayerControls(
     areControlsLocked,
     isUnlockSliderDragging,
     playerTimeToDisappear,
+    interfaceAutoHideOnResume,
   ) {
-    if (controlsShown && paused == false && !isSeeking && !isUnlockSliderDragging) {
-      if (areControlsLocked) {
-        // Use 2 second delay when controls are locked
-        delay(2000L)
-        viewModel.hideControls()
-      } else if (playerTimeToDisappear > 0) {
-        delay(playerTimeToDisappear.toLong())
-        viewModel.hideControls()
-      }
+    if (interfaceAutoHideOnResume && controlsShown && paused == false && !isSeeking && !isUnlockSliderDragging) {
+      delay(playerTimeToDisappear.coerceIn(1_000, 60_000).toLong())
+      viewModel.hideControls()
     }
   }
 
@@ -395,6 +418,31 @@ fun PlayerControls(
       val isPortrait by remember(configuration) {
         derivedStateOf { configuration.orientation == ORIENTATION_PORTRAIT }
       }
+      val screenshotOffsetXPreference = if (isPortrait) {
+        appearancePreferences.screenshotChipPortraitOffsetX
+      } else {
+        appearancePreferences.screenshotChipLandscapeOffsetX
+      }
+      val screenshotOffsetYPreference = if (isPortrait) {
+        appearancePreferences.screenshotChipPortraitOffsetY
+      } else {
+        appearancePreferences.screenshotChipLandscapeOffsetY
+      }
+      val savedScreenshotOffsetX by screenshotOffsetXPreference.collectAsState()
+      val savedScreenshotOffsetY by screenshotOffsetYPreference.collectAsState()
+      var screenshotOffsetX by remember(isPortrait) { mutableFloatStateOf(savedScreenshotOffsetX) }
+      var screenshotOffsetY by remember(isPortrait) { mutableFloatStateOf(savedScreenshotOffsetY) }
+      var isDraggingScreenshotChip by remember { mutableStateOf(false) }
+      var screenshotChipWidthPx by remember { mutableIntStateOf(0) }
+      var screenshotChipHeightPx by remember { mutableIntStateOf(0) }
+      val density = LocalDensity.current
+
+      LaunchedEffect(isPortrait, savedScreenshotOffsetX, savedScreenshotOffsetY) {
+        if (!isDraggingScreenshotChip) {
+          screenshotOffsetX = savedScreenshotOffsetX
+          screenshotOffsetY = savedScreenshotOffsetY
+        }
+      }
 
       ConstraintLayout(
         modifier =
@@ -422,6 +470,20 @@ fun PlayerControls(
         val customButtonsPortraitRef = createRef()
         val floatingABLoop = createRef()
         val floatingFrameNav = createRef()
+        val floatingScreenshotChip = createRef()
+        val captureFlash = createRef()
+
+        M3Surface(
+          color = Color.White.copy(alpha = captureFlashAlpha),
+          modifier = Modifier
+            .fillMaxSize()
+            .constrainAs(captureFlash) {
+              start.linkTo(parent.start)
+              end.linkTo(parent.end)
+              top.linkTo(parent.top)
+              bottom.linkTo(parent.bottom)
+            },
+        ) {}
 
         val bottomControlsBelowSeekbar by playerPreferences.bottomControlsBelowSeekbar.collectAsState()
         val playbackControlsPosition by playerPreferences.playbackControlsPosition.collectAsState()
@@ -495,6 +557,10 @@ fun PlayerControls(
         val frameNavYOffset by animateDpAsState(
           targetValue = if (abLoopActive && frameNavActive) -48.dp else 0.dp,
           label = "frameNavYOffset"
+        )
+        val screenshotChipBaseYOffset by animateDpAsState(
+          targetValue = if (abLoopActive && isScreenshotChipVisible) -48.dp else 0.dp,
+          label = "screenshotChipBaseYOffset",
         )
 
         val currentPlayerUpdate by viewModel.playerUpdate.collectAsState()
@@ -604,6 +670,7 @@ fun PlayerControls(
         LaunchedEffect(currentPlayerUpdate, aspectRatio, videoZoom) {
           if (currentPlayerUpdate is PlayerUpdates.MultipleSpeed ||
             currentPlayerUpdate is PlayerUpdates.DynamicSpeedControl ||
+            currentPlayerUpdate is PlayerUpdates.TwoFingerPlaybackSpeed ||
             currentPlayerUpdate is PlayerUpdates.None
           ) {
             return@LaunchedEffect
@@ -633,7 +700,11 @@ fun PlayerControls(
               )
               .constrainAs(playerUpdates) {
                 linkTo(parent.start, parent.end)
-                top.linkTo(parent.top, margin = osdTopMargin)
+                if (currentPlayerUpdate is PlayerUpdates.TwoFingerPlaybackSpeed) {
+                  linkTo(parent.top, parent.bottom)
+                } else {
+                  top.linkTo(parent.top, margin = osdTopMargin)
+                }
               },
         ) {
           val currentPlaybackSpeed = playbackSpeed ?: 1f
@@ -672,6 +743,12 @@ fun PlayerControls(
                   val currentSpeed = speedUpdate.speed
                   CompactSpeedIndicator(currentSpeed = currentSpeed)
                 }
+              }
+
+              is PlayerUpdates.TwoFingerPlaybackSpeed -> {
+                GestureSpeedPlayerUpdate(
+                  speed = (currentPlayerUpdate as PlayerUpdates.TwoFingerPlaybackSpeed).speed,
+                )
               }
 
               is PlayerUpdates.SpeedLockHint -> {
@@ -2087,6 +2164,152 @@ fun PlayerControls(
                 )
               }
             }
+          }
+        }
+
+        // This chip deliberately mirrors Frame Navigation's placement and animation, while its
+        // independent state keeps it visible across normal control dismissal and video changes.
+        AnimatedVisibility(
+          visible = isScreenshotChipVisible,
+          enter = fadeIn(tween(200)) + slideInHorizontally(initialOffsetX = { it }),
+          exit = fadeOut(tween(200)) + slideOutHorizontally(targetOffsetX = { it }),
+          modifier = Modifier
+            .constrainAs(floatingScreenshotChip) {
+              end.linkTo(parent.end, spacing.extraLarge)
+              top.linkTo(parent.top)
+              bottom.linkTo(parent.bottom)
+              verticalBias = abLoopVerticalBias
+            }
+            .offset {
+              IntOffset(
+                screenshotOffsetX.toInt(),
+                screenshotOffsetY.toInt() + with(density) { screenshotChipBaseYOffset.toPx().toInt() },
+              )
+            }
+            .onSizeChanged {
+              screenshotChipWidthPx = it.width
+              screenshotChipHeightPx = it.height
+            },
+        ) {
+          val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+          val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+          val minOffsetX = -(screenWidthPx - screenshotChipWidthPx).coerceAtLeast(0f)
+          val maxVerticalOffset = ((screenHeightPx - screenshotChipHeightPx) / 2f).coerceAtLeast(0f)
+          val context = LocalContext.current
+
+          // Reuse the exact surface treatment used by the Frame Navigation chip. This preserves
+          // its translucent grey background, subtle border, and all appearance preferences.
+          ControlsGroup(
+            shape = RoundedCornerShape(12.dp),
+            height = 48.dp,
+          ) {
+            // Secondary controls intentionally form a compact, lightweight group.
+              Box(
+                modifier = Modifier
+                  .size(width = 24.dp, height = 40.dp)
+                  .clickable { viewModel.pauseAndSeekBy(-1) },
+                contentAlignment = Alignment.Center,
+              ) {
+                Icon(
+                  imageVector = Icons.Filled.KeyboardArrowLeft,
+                  contentDescription = "Back one second",
+                  tint = Color.White.copy(alpha = 0.76f),
+                  modifier = Modifier.size(20.dp),
+                )
+              }
+
+              Box(
+                modifier = Modifier
+                  .size(width = 24.dp, height = 40.dp)
+                  .clickable { viewModel.pauseAndSeekBy(1) },
+                contentAlignment = Alignment.Center,
+              ) {
+                Icon(
+                  imageVector = Icons.Filled.KeyboardArrowRight,
+                  contentDescription = "Forward one second",
+                  tint = Color.White.copy(alpha = 0.76f),
+                  modifier = Modifier.size(20.dp),
+                )
+              }
+
+              // Only this small section moves the chip; seek and capture actions stay isolated
+              // from drag input.
+              Box(
+                modifier = Modifier
+                  .size(width = 30.dp, height = 40.dp)
+                  .pointerInput(
+                    isPortrait,
+                    screenshotChipWidthPx,
+                    screenshotChipHeightPx,
+                  ) {
+                    detectDragGestures(
+                      onDragStart = { isDraggingScreenshotChip = true },
+                      onDragEnd = {
+                        screenshotOffsetXPreference.set(screenshotOffsetX)
+                        screenshotOffsetYPreference.set(screenshotOffsetY)
+                        isDraggingScreenshotChip = false
+                      },
+                      onDragCancel = {
+                        screenshotOffsetXPreference.set(screenshotOffsetX)
+                        screenshotOffsetYPreference.set(screenshotOffsetY)
+                        isDraggingScreenshotChip = false
+                      },
+                    ) { change, dragAmount ->
+                      change.consume()
+                      screenshotOffsetX = (screenshotOffsetX + dragAmount.x).coerceIn(minOffsetX, 0f)
+                      screenshotOffsetY = (screenshotOffsetY + dragAmount.y).coerceIn(
+                        -maxVerticalOffset,
+                        maxVerticalOffset,
+                      )
+                    }
+                  },
+                contentAlignment = Alignment.Center,
+              ) {
+                Icon(
+                  imageVector = Icons.Outlined.DragIndicator,
+                  contentDescription = "Move screenshot controls",
+                  tint = Color.White.copy(alpha = 0.72f),
+                  modifier = Modifier.size(16.dp),
+                )
+              }
+
+              // The only separator is between the grouped secondary controls and the primary
+              // screenshot action.
+              Box(
+                modifier = Modifier
+                  .height(24.dp)
+                  .width(1.dp)
+                  .background(Color.White.copy(alpha = 0.26f)),
+              )
+
+              // The primary capture action retains its original large size and visual weight.
+              if (isSnapshotLoading) {
+                Box(
+                  modifier = Modifier.size(width = 58.dp, height = 44.dp),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White,
+                  )
+                }
+              } else {
+                Box(
+                  modifier = Modifier
+                    .size(width = 58.dp, height = 44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { viewModel.takeSnapshot(context, showCaptureFlash = true) },
+                  contentAlignment = Alignment.Center,
+                ) {
+                  Icon(
+                    imageVector = ScreenshotCaptureIcon,
+                    contentDescription = stringResource(R.string.btn_label_screenshot),
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp),
+                  )
+                }
+              }
           }
         }
       }

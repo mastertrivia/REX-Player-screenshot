@@ -95,6 +95,7 @@ object PlayerControlsPreferencesScreen : Screen {
         val bottomLState by appearancePrefs.bottomLeftControls.collectAsState()
         val portraitBottomState by appearancePrefs.portraitBottomControls.collectAsState()
         val moreSheetState by appearancePrefs.moreSheetControls.collectAsState()
+        val screenshotButtonScalePercent by appearancePrefs.screenshotButtonScalePercent.collectAsState()
 
         val topRightButtons = remember(topRState) {
             appearancePrefs.parseButtons(topRState, mutableSetOf())
@@ -257,6 +258,44 @@ object PlayerControlsPreferencesScreen : Screen {
                         }
                     }
 
+                    // Kept directly beside Player Layout controls because this setting applies only
+                    // to the independently configurable Screenshot launcher.
+                    item {
+                        PreferenceSectionHeader(title = stringResource(R.string.pref_layout_screenshot_button_header))
+                    }
+                    item {
+                        GroupedListColumn {
+                            GroupedPreferenceCard(
+                                position = GroupPosition.ONLY,
+                                highlightKey = R.string.pref_layout_screenshot_button_size,
+                            ) {
+                                SliderPreference(
+                                    value = screenshotButtonScalePercent.toFloat(),
+                                    onValueChange = {
+                                        appearancePrefs.screenshotButtonScalePercent.set(it.toInt())
+                                    },
+                                    title = {
+                                        Text(stringResource(R.string.pref_layout_screenshot_button_size))
+                                    },
+                                    valueRange = 20f..80f,
+                                    summary = {
+                                        Text(
+                                            text = stringResource(
+                                                R.string.pref_layout_screenshot_button_size_current,
+                                                screenshotButtonScalePercent,
+                                            ),
+                                            color = MaterialTheme.colorScheme.outline,
+                                        )
+                                    },
+                                    onSliderValueChange = {
+                                        appearancePrefs.screenshotButtonScalePercent.set(it.toInt())
+                                    },
+                                    sliderValue = screenshotButtonScalePercent.toFloat(),
+                                )
+                            }
+                        }
+                    }
+
                     // Seekbar Section
                     item {
                         PreferenceSectionHeader(title = stringResource(R.string.pref_seekbar_style_header))
@@ -266,6 +305,7 @@ object PlayerControlsPreferencesScreen : Screen {
                         val whiteSeekBar by playerPrefs.whiteSeekBar.collectAsState()
                         val showSeekbarChapters by playerPrefs.showSeekbarChapters.collectAsState()
                         val showSeekbarReadAhead by playerPrefs.showSeekbarReadAhead.collectAsState()
+                        val showRemainingTime by playerPrefs.invertDuration.collectAsState()
                         val speedAdjustedRemaining by playerPrefs.speedAdjustedRemainingTime.collectAsState()
 
                         GroupedListColumn {
@@ -342,6 +382,22 @@ object PlayerControlsPreferencesScreen : Screen {
                                     },
                                     summary = {
                                         Text(text = stringResource(R.string.pref_player_show_seekbar_read_ahead_summary))
+                                    },
+                                )
+                            }
+
+                            GroupedPreferenceCard(
+                                position = GroupPosition.MIDDLE,
+                                highlightKey = R.string.pref_player_show_remaining_time,
+                            ) {
+                                SwitchPreference(
+                                    value = showRemainingTime,
+                                    onValueChange = { playerPrefs.invertDuration.set(it) },
+                                    title = {
+                                        Text(text = stringResource(R.string.pref_player_show_remaining_time))
+                                    },
+                                    summary = {
+                                        Text(text = stringResource(R.string.pref_player_show_remaining_time_summary))
                                     },
                                 )
                             }
@@ -440,8 +496,9 @@ object PlayerControlsPreferencesScreen : Screen {
                         val enableGlassSeekbarBackground by appearancePrefs.enableGlassSeekbarBackground.collectAsState()
                         val playerAlwaysDarkMode by appearancePrefs.playerAlwaysDarkMode.collectAsState()
                         val playerTimeToDisappear by playerPrefs.playerTimeToDisappear.collectAsState()
-                        val predefinedTimeValues = listOf(0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000)
-                        val isCustomTimeValue = !predefinedTimeValues.contains(playerTimeToDisappear)
+                        val interfaceAutoHideOnResume by playerPrefs.interfaceAutoHideOnResume.collectAsState()
+                        val predefinedTimeValues = listOf(0, 1000, 2000, 3000, 4000, 5000)
+                        val isCustomTimeValue = interfaceAutoHideOnResume && !predefinedTimeValues.contains(playerTimeToDisappear)
                         val offLabel = stringResource(R.string.generic_off)
                         val customLabel = stringResource(R.string.generic_custom)
                         var showCustomTimeDialog by remember { mutableStateOf(false) }
@@ -660,13 +717,16 @@ object PlayerControlsPreferencesScreen : Screen {
                                 highlightKey = R.string.pref_player_display_hide_player_control_time,
                             ) {
                                 ListPreference(
-                                    value = if (isCustomTimeValue) -1 else playerTimeToDisappear,
+                                    value = if (!interfaceAutoHideOnResume) 0 else if (isCustomTimeValue) -1 else playerTimeToDisappear,
                                     onValueChange = { newValue ->
                                         if (newValue == -1) {
                                             customTimeValue = playerTimeToDisappear.toString()
                                             showCustomTimeDialog = true
+                                        } else if (newValue == 0) {
+                                            playerPrefs.interfaceAutoHideOnResume.set(false)
                                         } else {
                                             playerPrefs.playerTimeToDisappear.set(newValue)
+                                            playerPrefs.interfaceAutoHideOnResume.set(true)
                                         }
                                     },
                                     values = predefinedTimeValues + listOf(-1),
@@ -681,7 +741,7 @@ object PlayerControlsPreferencesScreen : Screen {
                                     summary = {
                                         Text(
                                             text = when {
-                                                playerTimeToDisappear == 0 -> offLabel
+                                                !interfaceAutoHideOnResume -> offLabel
                                                 isCustomTimeValue -> {
                                                     stringResource(
                                                         R.string.pref_player_display_custom_time_summary,
@@ -730,8 +790,9 @@ object PlayerControlsPreferencesScreen : Screen {
                                     TextButton(
                                         onClick = {
                                             val value = customTimeValue.toIntOrNull()
-                                            if (value != null && value in 0..1000000000) {
+                                            if (value != null && value in 1000..60000) {
                                                 playerPrefs.playerTimeToDisappear.set(value)
+                                                playerPrefs.interfaceAutoHideOnResume.set(true)
                                                 showCustomTimeDialog = false
                                             }
                                         },

@@ -177,6 +177,48 @@ class PlaybackManager(
     }
 
     /**
+     * Pauses first, then performs one deliberate relative seek without ever resuming playback.
+     * This is used by the screenshot toolbar so the selected frame remains stable for capture.
+     */
+    fun pauseAndSeekBy(
+        scope: CoroutineScope,
+        offset: Int,
+        onAbandonAudioFocus: () -> Unit,
+    ) {
+        if (offset == 0 || !canAccessMpv()) return
+
+        seekJob?.cancel()
+        onSeekRequested?.invoke()
+        seekJob = scope.launch(Dispatchers.IO) {
+            if (!isActive || !canAccessMpv()) return@launch
+
+            // Keep these operations in one coroutine so a relative seek can never race ahead of
+            // the pause request or restore playback afterwards.
+            runCatching { MPVLib.setPropertyBoolean("pause", true) }
+            withContext(Dispatchers.Main) { onAbandonAudioFocus() }
+            if (!isActive || !canAccessMpv()) return@launch
+
+            val duration = runCatching { MPVLib.getPropertyInt("duration") }.getOrNull() ?: 0
+            val currentPos = runCatching { MPVLib.getPropertyInt("time-pos") }.getOrNull() ?: 0
+
+            ensureUnmuted()
+            if (!isActive || !canAccessMpv()) return@launch
+            if (duration > 0 && currentPos + offset >= duration) {
+                runCatching { MPVLib.command("seek", "100", "absolute-percent+exact") }
+            } else {
+                // This is a precise positioning control, unlike the configurable ordinary skip.
+                runCatching { MPVLib.command("seek", offset.toString(), "relative+exact") }
+            }
+
+            // Some MPV seek modes adjust pause internally. Reinstate it after the command as the
+            // final operation to make the paused result explicit.
+            if (canAccessMpv()) {
+                runCatching { MPVLib.setPropertyBoolean("pause", true) }
+            }
+        }
+    }
+
+    /**
      * Resynchronizes audio and video demuxer streams after an audio track change.
      * Prevents audio muting and buffer starvation on network streams by flushing the demuxer queues
      * and aligning the audio presentation timestamp (PTS) with the master clock.

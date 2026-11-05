@@ -49,6 +49,14 @@ class AppearancePreferences(
   val playerAlwaysDarkMode = preferenceStore.getBoolean("player_always_dark_mode", true)
   val hidePlayFabShowInHeader = preferenceStore.getBoolean("hide_play_fab_show_in_header", false)
 
+  // Screenshot launcher settings are deliberately separate from all existing player controls.
+  // 40% is the baseline size used by the standard overlay buttons.
+  val screenshotButtonScalePercent = preferenceStore.getInt("screenshot_button_scale_percent", 40)
+  val screenshotChipLandscapeOffsetX = preferenceStore.getFloat("screenshot_chip_landscape_offset_x", 0f)
+  val screenshotChipLandscapeOffsetY = preferenceStore.getFloat("screenshot_chip_landscape_offset_y", 0f)
+  val screenshotChipPortraitOffsetX = preferenceStore.getFloat("screenshot_chip_portrait_offset_x", 0f)
+  val screenshotChipPortraitOffsetY = preferenceStore.getFloat("screenshot_chip_portrait_offset_y", 0f)
+
   val thumbnailStrategy = preferenceStore.getEnum("thumbnail_strategy", ThumbnailStrategy.FirstFrame)
   val thumbnailPositionPercent = preferenceStore.getInt("thumbnail_position_percent", THUMBNAIL_POSITION_DEFAULT)
 

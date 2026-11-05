@@ -188,6 +188,8 @@ class PlayerViewModel(
     PlayerSnapshotManager(playerPreferences)
   }
   val snapshotManager: PlayerSnapshotManager get() = _snapshotManager
+  private val _snapshotCaptured = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+  val snapshotCaptured = _snapshotCaptured.asSharedFlow()
 
   /**
    * Manager for touch gestures, double-tap seek, and gesture action mapping.
@@ -476,6 +478,10 @@ class PlayerViewModel(
 
   private val _isFrameNavigationExpanded = MutableStateFlow(false)
   val isFrameNavigationExpanded: StateFlow<Boolean> = _isFrameNavigationExpanded.asStateFlow()
+
+  // Independent from Frame Navigation and the normal controls visibility lifecycle.
+  private val _isScreenshotChipVisible = MutableStateFlow(false)
+  val isScreenshotChipVisible: StateFlow<Boolean> = _isScreenshotChipVisible.asStateFlow()
 
   val isSnapshotLoading: StateFlow<Boolean> get() = _snapshotManager.isSnapshotLoading
 
@@ -1149,6 +1155,15 @@ class PlayerViewModel(
     _playbackManager.seekBy(viewModelScope, offset)
   }
 
+  /** Moves exactly one requested interval while leaving playback paused for frame capture. */
+  fun pauseAndSeekBy(offset: Int) {
+    _playbackManager.pauseAndSeekBy(
+      scope = viewModelScope,
+      offset = offset,
+      onAbandonAudioFocus = { host.abandonAudioFocus() },
+    )
+  }
+
   fun seekTo(position: Int) {
     _playbackManager.seekTo(viewModelScope, position, abLoopA.value, abLoopB.value)
   }
@@ -1696,6 +1711,10 @@ class PlayerViewModel(
     }
   }
 
+  fun toggleScreenshotChipVisible() {
+    _isScreenshotChipVisible.update { !it }
+  }
+
   private fun showFrameInfoOverlay() {
     playerUpdate.value = PlayerUpdates.FrameInfo(_currentFrame.value, _totalFrames.value)
   }
@@ -1728,7 +1747,10 @@ class PlayerViewModel(
     )
   }
 
-  fun takeSnapshot(context: Context) = _snapshotManager.takeSnapshot(context, viewModelScope)
+  fun takeSnapshot(context: Context, showCaptureFlash: Boolean = false) =
+    _snapshotManager.takeSnapshot(context, viewModelScope) {
+      if (showCaptureFlash) _snapshotCaptured.tryEmit(Unit)
+    }
 
   // ==================== Playlist Management ====================
 

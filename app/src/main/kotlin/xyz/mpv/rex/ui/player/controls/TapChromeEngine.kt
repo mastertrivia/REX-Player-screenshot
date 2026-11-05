@@ -41,6 +41,13 @@ internal data class TapConfig(
    * the double-tap window has closed, so a double-tap seek never shows the chrome speculatively.
    */
   val deferToggle: Boolean = false,
+  /**
+   * Forces a single-tap action across the playback surface. The host uses this for the explicit
+   * touch-action modes; double taps continue through the existing region action path.
+   */
+  val forceSingleTapAction: Boolean = false,
+  /** Fraction of the top and bottom reserved for chrome toggling when a forced action is active. */
+  val exclusionZoneFraction: Float = 0.25f,
 )
 
 /**
@@ -56,8 +63,8 @@ internal data class TapConfig(
  *    a gesture that turned out not to be a tap. With [TapConfig.deferToggle] the toggle is instead
  *    queued until the double-tap window closes.
  *  - A double tap ends with the chrome exactly as it was before the first tap.
- *  - With an instant single-tap action enabled, a tap outside the top/bottom quarter runs the action
- *    and never touches the chrome.
+ *  - With an instant single-tap action enabled, a tap outside the configured top/bottom exclusion
+ *    zones runs the action and never touches the chrome.
  *  - While the controls are locked, a clean tap never runs an action and always shows the chrome:
  *    the unlock slider lives there, so it must be reachable from anywhere on the screen.
  *  - An unclean gesture produces no chrome effect, writes no snapshot and starts no double-tap
@@ -155,9 +162,9 @@ internal class TapChromeEngine(
     downX = x
     downY = y
     live = true
-    val zone = c.height * 0.25f
-    val inZone = y < zone || y > c.height - zone
-    spent = hasInstant(region, c) && !inZone
+    val zone = c.height * c.exclusionZoneFraction.coerceIn(0f, 0.5f)
+    val inZone = zone > 0f && (y <= zone || y >= c.height - zone)
+    spent = (c.forceSingleTapAction || hasInstant(region, c)) && !inZone
     val near = lastRegion == region && hypot(x - lastX, y - lastY) < c.slop
     val closesWindow = count == 1 && near && time - lastTime < c.doubleTapMs
     kind = when {

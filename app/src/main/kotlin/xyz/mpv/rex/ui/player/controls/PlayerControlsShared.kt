@@ -18,6 +18,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -123,6 +124,7 @@ fun RenderPlayerButton(
   val doubleTapChapterToSkip by gesturePreferences.doubleTapChapterToSkip.collectAsState()
   val matchTheme by appearancePreferences.matchPlayerControlsToTheme.collectAsState()
   val enableGlass by appearancePreferences.enableGlassPlayerControls.collectAsState()
+  val screenshotButtonScalePercent by appearancePreferences.screenshotButtonScalePercent.collectAsState()
   val inDock = xyz.mpv.rex.ui.player.controls.components.LocalInControlsDock.current
   val itemShape = if (inDock) RoundedCornerShape(14.dp) else RoundedCornerShape(12.dp)
   
@@ -564,6 +566,59 @@ fun RenderPlayerButton(
           isActive = isActive,
           modifier = Modifier.size(buttonSize),
         )
+      }
+    }
+
+    PlayerButton.SCREENSHOT -> {
+      val isScreenshotChipVisible by viewModel.isScreenshotChipVisible.collectAsState()
+      if (isMoreSheet) {
+        Surface(
+          shape = itemShape,
+          color = surfaceColor,
+          contentColor = contentColor,
+          border = borderColor,
+          modifier = Modifier.height(buttonSize).clip(itemShape).clickable {
+            viewModel.toggleScreenshotChipVisible()
+            onOpenSheet(Sheets.None)
+          },
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.smaller),
+          ) {
+            Icon(button.icon, contentDescription = null, modifier = Modifier.size(24.dp))
+            Text(stringResource(R.string.btn_label_screenshot), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+          }
+        }
+      } else {
+        // The size preference scales the complete launcher, not its padding or hit target alone.
+        val scaledButtonSize = buttonSize * (screenshotButtonScalePercent / 40f)
+        M3Surface(
+          shape = CircleShape,
+          color = if (isScreenshotChipVisible) Color(0xFFE51616) else Color(0xE91D2129),
+          contentColor = Color.White,
+          shadowElevation = 3.dp,
+          modifier = Modifier
+            .size(scaledButtonSize)
+            .clip(CircleShape)
+            .clickable { viewModel.toggleScreenshotChipVisible() },
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .padding(scaledButtonSize * 0.055f)
+                .border(1.5.dp, Color.White, CircleShape),
+            )
+            Icon(
+              imageVector = button.icon,
+              contentDescription = stringResource(R.string.btn_label_screenshot),
+              tint = Color.White,
+              modifier = Modifier.size(scaledButtonSize * 0.52f),
+            )
+          }
+        }
       }
     }
 

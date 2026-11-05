@@ -87,6 +87,16 @@ enum class SingleActionGesture(
   PlaylistPrev(R.string.pref_gesture_media_previous),
 }
 
+/** Defines the action performed by a clean, single tap on the playback surface. */
+enum class TouchAction(
+  @StringRes val titleRes: Int,
+) {
+  ShowHideInterface(R.string.pref_touch_action_show_hide_interface),
+  ShowInterfaceThenPauseResume(R.string.pref_touch_action_show_interface_then_pause_resume),
+  ShowHideInterfaceAndPauseResume(R.string.pref_touch_action_show_hide_interface_and_pause_resume),
+  PauseResume(R.string.pref_touch_action_pause_resume),
+}
+
 enum class CustomKeyCodes(
   val keyCode: String,
   @StringRes val titleRes: Int,
@@ -191,6 +201,10 @@ sealed class PlayerUpdates {
   data class HorizontalSeek(
     val currentTime: String,
     val seekDelta: String,
+  ) : PlayerUpdates()
+
+  data class TwoFingerPlaybackSpeed(
+    val speed: Float,
   ) : PlayerUpdates()
 
   data class ShowText(

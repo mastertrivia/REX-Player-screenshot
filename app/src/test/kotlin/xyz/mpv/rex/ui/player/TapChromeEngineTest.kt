@@ -16,6 +16,8 @@ private fun cfg(
   reverse: Boolean = false,
   seekLeft: Boolean = true,
   seekRight: Boolean = true,
+  forceSingleTapAction: Boolean = false,
+  exclusionZoneFraction: Float = 0.25f,
 ) = TapConfig(
   width = 1000f,
   height = 800f,
@@ -24,6 +26,8 @@ private fun cfg(
   reverse = reverse,
   seekLeft = seekLeft,
   seekRight = seekRight,
+  forceSingleTapAction = forceSingleTapAction,
+  exclusionZoneFraction = exclusionZoneFraction,
 )
 
 private fun chrome(shown: Boolean) = if (shown) "show" else "hide"
@@ -180,6 +184,24 @@ class TapChromeEngineTest {
       r.tap(0, y = 100f)
       assertEquals("start=$start", listOf(chrome(!start)), r.log)
       assertEquals("start=$start", !start, r.shown)
+    }
+  }
+
+  @Test
+  fun forcedSingleTap_usesTenPercentTopAndBottomExclusionZones() {
+    val c = cfg(forceSingleTapAction = true, exclusionZoneFraction = 0.10f)
+
+    Rig(false, c).let { r ->
+      r.tap(0, x = 100f, y = 80f)
+      assertEquals(listOf("show"), r.log)
+    }
+    Rig(false, c).let { r ->
+      r.tap(0, x = 100f, y = 400f)
+      assertEquals(listOf("left:single"), r.log)
+    }
+    Rig(false, c).let { r ->
+      r.tap(0, x = 900f, y = 760f)
+      assertEquals(listOf("show"), r.log)
     }
   }
 

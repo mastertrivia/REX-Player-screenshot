@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import xyz.mpv.rex.preferences.AppearancePreferences
 import xyz.mpv.rex.preferences.preference.collectAsState
@@ -201,6 +202,7 @@ fun ControlsButton(
 fun ControlsGroup(
   modifier: Modifier = Modifier,
   shape: RoundedCornerShape = RoundedCornerShape(16.dp),
+  height: Dp = 42.dp,
   content: @Composable RowScope.() -> Unit,
 ) {
   val appearancePreferences = koinInject<AppearancePreferences>()
@@ -255,7 +257,7 @@ fun ControlsGroup(
   CompositionLocalProvider(LocalInControlsDock provides true) {
     if (hideBackground) {
       Row(
-        modifier = modifier.height(42.dp),
+        modifier = modifier.height(height),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
         content = content,
@@ -263,7 +265,7 @@ fun ControlsGroup(
     } else {
       Surface(
         modifier = modifier
-          .height(42.dp)
+          .height(height)
           .then(glassModifier),
         shape = shape,
         color = surfaceColor,

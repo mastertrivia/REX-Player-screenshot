@@ -558,6 +558,25 @@
     <string name="swap_the_volume_and_brightness_slider">Swap volume and brightness slider</string>
     <string name="pref_player_display_reduce_player_animation">Reduce player animation</string>
     <string name="pref_player_display_hide_player_control_time">Hide player control time</string>
+    <string name="pref_player_gestures_playback_speed">Playback speed</string>
+    <string name="pref_player_gestures_playback_speed_summary">Swipe up or down with two fingers to change playback speed.</string>
+    <string name="pref_player_gestures_playback_speed_sensitivity">Playback speed gesture sensitivity</string>
+    <string name="pref_player_interaction">Interaction</string>
+    <string name="pref_touch_action">Touch Action</string>
+    <string name="pref_touch_action_show_hide_interface">Show/Hide Interface</string>
+    <string name="pref_touch_action_show_interface_then_pause_resume">Show Interface → Pause/Resume</string>
+    <string name="pref_touch_action_show_hide_interface_and_pause_resume">Show/Hide Interface + Pause/Resume</string>
+    <string name="pref_touch_action_pause_resume">Pause/Resume</string>
+    <string name="pref_interface_auto_hide_on_resume">Interface Auto Hide on Resume</string>
+    <string name="pref_interface_auto_hide_on_resume_summary_on">Automatically hide the interface while playback is resumed</string>
+    <string name="pref_interface_auto_hide_on_resume_summary_off">The interface stays visible until you hide it manually</string>
+    <string name="pref_interface_auto_hide_duration">Hide Duration</string>
+    <string name="pref_interface_auto_hide_duration_summary">Hide after %1$d seconds</string>
+    <string name="pref_interface_auto_hide_duration_hint">Enter a whole number from 1 to 60 seconds</string>
+    <string name="pref_hide_video_title_in_player">Hide video title in Player</string>
+    <string name="pref_hide_video_title_in_player_summary">Keep the Back button visible while hiding the video title</string>
+    <string name="pref_show_screenshot_saved_toast">Show screenshot saved toast</string>
+    <string name="pref_show_screenshot_saved_toast_summary">Show a message when a screenshot is saved</string>
     <string name="show_splash_ovals_on_double_tap_to_seek">Show ripple when double tap seeking</string>
     <string name="pref_player_show_circular_double_tap_seek_title">Show circular double tap seek</string>
     <string name="pref_player_show_circular_double_tap_seek_summary">Show a circular seek overlay with time below it</string>
@@ -672,6 +691,8 @@
     <string name="pref_player_show_seekbar_chapters_summary">Display chapter markers on the seekbar</string>
     <string name="pref_player_show_seekbar_read_ahead_title">Show buffered content</string>
     <string name="pref_player_show_seekbar_read_ahead_summary">Display visual hint of buffered content on the seekbar</string>
+    <string name="pref_player_show_remaining_time">Show Remaining Time</string>
+    <string name="pref_player_show_remaining_time_summary">Replace the total duration with the remaining time</string>
     <string name="pref_player_speed_adjusted_remaining_title">Speed-based remaining time</string>
     <string name="pref_player_speed_adjusted_remaining_summary">Adjust the remaining time by the playback speed (a 2-minute video at 2x shows 1 minute remaining)</string>
     <string name="pref_player_hide_osd_text_title">Hide player OSD text</string>
@@ -1089,6 +1110,10 @@
     <string name="btn_label_decoder">Decoder</string>
     <string name="btn_label_rotation">Screen Rotation</string>
     <string name="btn_label_frame_nav">Frame Navigation</string>
+    <string name="btn_label_screenshot">Screenshot</string>
+    <string name="pref_layout_screenshot_button_header">Floating Screenshot Button</string>
+    <string name="pref_layout_screenshot_button_size">Floating Screenshot Button Size</string>
+    <string name="pref_layout_screenshot_button_size_current" translatable="false">%1$d%%</string>
     <string name="btn_label_zoom">Video Zoom</string>
     <string name="btn_label_pip">Picture-in-Picture</string>
     <string name="btn_label_aspect">Aspect Ratio</string>

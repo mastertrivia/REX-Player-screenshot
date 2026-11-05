@@ -7,6 +7,7 @@ import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Camera
+import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.MoreVert
@@ -25,8 +26,12 @@ import androidx.compose.material.icons.outlined.BlurOn
 import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import xyz.mpv.rex.R
 
 /**
@@ -43,6 +48,7 @@ enum class PlayerButton(
   DECODER(Icons.Outlined.Memory),
   SCREEN_ROTATION(Icons.Outlined.ScreenRotation),
   FRAME_NAVIGATION(Icons.Outlined.Camera),
+  SCREENSHOT(Icons.Outlined.ContentCut),
   VIDEO_ZOOM(Icons.Outlined.ZoomIn),
   PICTURE_IN_PICTURE(Icons.Outlined.PictureInPictureAlt),
   ASPECT_RATIO(Icons.Outlined.AspectRatio),
@@ -88,6 +94,7 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
     PlayerButton.DECODER -> stringResource(R.string.btn_label_decoder)
     PlayerButton.SCREEN_ROTATION -> stringResource(R.string.btn_label_rotation)
     PlayerButton.FRAME_NAVIGATION -> stringResource(R.string.btn_label_frame_nav)
+    PlayerButton.SCREENSHOT -> stringResource(R.string.btn_label_screenshot)
     PlayerButton.VIDEO_ZOOM -> stringResource(R.string.btn_label_zoom)
     PlayerButton.PICTURE_IN_PICTURE -> stringResource(R.string.btn_label_pip)
     PlayerButton.ASPECT_RATIO -> stringResource(R.string.btn_label_aspect)
@@ -108,3 +115,28 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
     PlayerButton.VIDEO_QUALITY -> stringResource(R.string.btn_label_quality)
     PlayerButton.NONE -> stringResource(R.string.btn_label_none)
   }
+
+/** Camera-with-focus-corners glyph used by the floating screenshot capture action. */
+val ScreenshotCaptureIcon: ImageVector by lazy {
+  ImageVector.Builder(
+    name = "Screenshot",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+  ).apply {
+    path(
+      fill = null,
+      stroke = SolidColor(Color.Black),
+      strokeLineWidth = 1.8f,
+    ) {
+      moveTo(4f, 8f); lineTo(4f, 4f); lineTo(8f, 4f)
+      moveTo(16f, 4f); lineTo(20f, 4f); lineTo(20f, 8f)
+      moveTo(20f, 16f); lineTo(20f, 20f); lineTo(16f, 20f)
+      moveTo(8f, 20f); lineTo(4f, 20f); lineTo(4f, 16f)
+      moveTo(7f, 10f); lineTo(9f, 10f); lineTo(10f, 8.5f); lineTo(14f, 8.5f); lineTo(15f, 10f)
+      lineTo(17f, 10f); lineTo(17f, 16f); lineTo(7f, 16f); close()
+      moveTo(14f, 13f); arcTo(10f, 11f, 14f, 15f, 0f, 360f, false)
+    }
+  }.build()
+}

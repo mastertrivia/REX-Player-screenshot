@@ -112,6 +112,8 @@ object GesturePreferencesScreen : Screen {
             val volumeGesture by playerPreferences.volumeGesture.collectAsState()
             val pinchToZoomGesture by playerPreferences.pinchToZoomGesture.collectAsState()
             val panAndZoomEnabled by playerPreferences.panAndZoomEnabled.collectAsState()
+            val playbackSpeedGesture by playerPreferences.playbackSpeedGesture.collectAsState()
+            val playbackSpeedGestureSensitivity by playerPreferences.playbackSpeedGestureSensitivity.collectAsState()
             val horizontalSwipeToSeek by playerPreferences.horizontalSwipeToSeek.collectAsState()
             val swipeToSubtitleSeek by playerPreferences.swipeToSubtitleSeek.collectAsState()
             val moveSubtitleByDragging by playerPreferences.moveSubtitleByDragging.collectAsState()
@@ -153,7 +155,13 @@ object GesturePreferencesScreen : Screen {
               ) {
                 SwitchPreference(
                   value = pinchToZoomGesture,
-                  onValueChange = playerPreferences.pinchToZoomGesture::set,
+                  onValueChange = { enabled ->
+                    playerPreferences.pinchToZoomGesture.set(enabled)
+                    if (enabled) {
+                      playerPreferences.panAndZoomEnabled.set(false)
+                      playerPreferences.playbackSpeedGesture.set(false)
+                    }
+                  },
                   title = { Text(stringResource(R.string.pref_player_gestures_pinch_to_zoom)) },
                 )
               }
@@ -164,9 +172,58 @@ object GesturePreferencesScreen : Screen {
               ) {
                 SwitchPreference(
                   value = panAndZoomEnabled,
-                  onValueChange = playerPreferences.panAndZoomEnabled::set,
+                  onValueChange = { enabled ->
+                    playerPreferences.panAndZoomEnabled.set(enabled)
+                    if (enabled) {
+                      playerPreferences.pinchToZoomGesture.set(false)
+                      playerPreferences.playbackSpeedGesture.set(false)
+                    }
+                  },
                   title = { Text(stringResource(R.string.pref_player_gestures_pan_and_zoom)) },
                   summary = { Text(stringResource(R.string.pref_player_gestures_pan_and_zoom_summary)) },
+                )
+              }
+
+              GroupedPreferenceCard(
+                position = GroupPosition.MIDDLE,
+                highlightKey = R.string.pref_player_gestures_playback_speed,
+              ) {
+                SwitchPreference(
+                  value = playbackSpeedGesture,
+                  onValueChange = { enabled ->
+                    playerPreferences.playbackSpeedGesture.set(enabled)
+                    if (enabled) {
+                      playerPreferences.pinchToZoomGesture.set(false)
+                      playerPreferences.panAndZoomEnabled.set(false)
+                    }
+                  },
+                  title = { Text(stringResource(R.string.pref_player_gestures_playback_speed)) },
+                  summary = { Text(stringResource(R.string.pref_player_gestures_playback_speed_summary)) },
+                )
+              }
+
+              GroupedPreferenceCard(
+                position = GroupPosition.MIDDLE,
+                highlightKey = R.string.pref_player_gestures_playback_speed_sensitivity,
+              ) {
+                SliderPreference(
+                  value = playbackSpeedGestureSensitivity.toFloat(),
+                  onValueChange = { playerPreferences.playbackSpeedGestureSensitivity.set(it.toInt()) },
+                  title = { Text(stringResource(R.string.pref_player_gestures_playback_speed_sensitivity)) },
+                  valueRange = 0f..100f,
+                  summary = {
+                    val label = when {
+                      playbackSpeedGestureSensitivity < 30 -> "Low"
+                      playbackSpeedGestureSensitivity < 55 -> "Medium"
+                      else -> "High"
+                    }
+                    Text(
+                      "Current: $playbackSpeedGestureSensitivity/100 ($label)",
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                  onSliderValueChange = { playerPreferences.playbackSpeedGestureSensitivity.set(it.toInt()) },
+                  sliderValue = playbackSpeedGestureSensitivity.toFloat(),
                 )
               }
 

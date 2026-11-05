@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
 import xyz.mpv.rex.R
 import xyz.mpv.rex.preferences.PlayerPreferences
 
@@ -32,9 +34,16 @@ class PlayerSnapshotManager(
 ) {
   private val _isSnapshotLoading = MutableStateFlow(false)
   val isSnapshotLoading: StateFlow<Boolean> = _isSnapshotLoading.asStateFlow()
+  private val captureMutex = Mutex()
 
-  fun takeSnapshot(context: Context, scope: CoroutineScope) {
+  fun takeSnapshot(
+    context: Context,
+    scope: CoroutineScope,
+    onImageCaptured: () -> Unit = {},
+  ) {
     scope.launch(Dispatchers.IO) {
+      // A second tap while MPV is writing would overwrite the same capture pipeline.
+      if (!captureMutex.tryLock()) return@launch
       _isSnapshotLoading.value = true
       try {
         val includeSubtitles = playerPreferences.includeSubtitlesInSnapshot.get()
@@ -54,16 +63,22 @@ class PlayerSnapshotManager(
           MPVLib.command("screenshot-to-file", tempFile.absolutePath, "video")
         }
 
-        // Wait a bit for MPV to finish writing the file
-        delay(200)
-
-        // Check if file was created
-        if (!tempFile.exists() || tempFile.length() == 0L) {
+        // MPV writes asynchronously. Wait for an actual stable, non-empty file instead of
+        // imposing an arbitrary delay that is either slow or unreliable on different devices.
+        if (!awaitFileReady(tempFile)) {
           withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Failed to create screenshot", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+              context,
+              context.getString(R.string.player_sheets_frame_navigation_screenshot_create_failed),
+              Toast.LENGTH_SHORT,
+            ).show()
           }
           return@launch
         }
+
+        // The flash is a confirmation that the image itself exists, not merely that the
+        // control was tapped. Saving to MediaStore continues asynchronously below.
+        withContext(Dispatchers.Main) { onImageCaptured() }
 
         // Use different methods based on Android version
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -88,7 +103,12 @@ class PlayerSnapshotManager(
 
           if (imageUri != null) {
             // Copy temp file to MediaStore
-            resolver.openOutputStream(imageUri)?.use { outputStream ->
+            val outputStream =
+              resolver.openOutputStream(imageUri)
+                ?: throw IllegalStateException(
+                  context.getString(R.string.player_sheets_frame_navigation_mediastore_entry_failed),
+                )
+            outputStream.use { outputStream ->
               tempFile.inputStream().use { inputStream ->
                 inputStream.copyTo(outputStream)
               }
@@ -102,14 +122,15 @@ class PlayerSnapshotManager(
             // Delete temp file
             tempFile.delete()
 
-            // Show success toast
-            withContext(Dispatchers.Main) {
-              Toast
-                .makeText(
-                  context,
-                  context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
-                  Toast.LENGTH_SHORT,
-                ).show()
+            if (playerPreferences.showScreenshotSavedToast.get()) {
+              withContext(Dispatchers.Main) {
+                Toast
+                  .makeText(
+                    context,
+                    context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
+                    Toast.LENGTH_SHORT,
+                  ).show()
+              }
             }
           } else {
             throw Exception("Failed to create MediaStore entry")
@@ -143,22 +164,48 @@ class PlayerSnapshotManager(
             null,
           )
 
-          withContext(Dispatchers.Main) {
-            Toast
-              .makeText(
-                context,
-                context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
-                Toast.LENGTH_SHORT,
-              ).show()
+          if (playerPreferences.showScreenshotSavedToast.get()) {
+            withContext(Dispatchers.Main) {
+              Toast
+                .makeText(
+                  context,
+                  context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
+                  Toast.LENGTH_SHORT,
+                ).show()
+            }
           }
         }
       } catch (e: Exception) {
         withContext(Dispatchers.Main) {
-          Toast.makeText(context, "Failed to save snapshot: ${e.message}", Toast.LENGTH_LONG).show()
+          Toast.makeText(
+            context,
+            context.getString(
+              R.string.player_sheets_frame_navigation_snapshot_save_failed,
+              e.message.orEmpty(),
+            ),
+            Toast.LENGTH_LONG,
+          ).show()
         }
       } finally {
         _isSnapshotLoading.value = false
+        captureMutex.unlock()
       }
     }
+  }
+
+  private suspend fun awaitFileReady(file: File): Boolean =
+    withTimeoutOrNull(FILE_READY_TIMEOUT_MS) {
+      var previousSize = -1L
+      while (true) {
+        val currentSize = if (file.exists()) file.length() else 0L
+        if (currentSize > 0L && currentSize == previousSize) return@withTimeoutOrNull true
+        previousSize = currentSize
+        delay(FILE_READY_POLL_INTERVAL_MS)
+      }
+    } ?: false
+
+  private companion object {
+    const val FILE_READY_TIMEOUT_MS = 5_000L
+    const val FILE_READY_POLL_INTERVAL_MS = 20L
   }
 }

@@ -86,6 +86,7 @@ import xyz.mpv.rex.ui.player.PlayerViewModel
 import xyz.mpv.rex.ui.player.PlayerTutorialManager
 import xyz.mpv.rex.ui.player.Sheets
 import xyz.mpv.rex.ui.player.SingleActionGesture
+import xyz.mpv.rex.ui.player.TouchAction
 import xyz.mpv.rex.ui.theme.playerRippleConfiguration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
@@ -95,6 +96,7 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
@@ -132,6 +134,7 @@ fun GestureHandler(
   val reverseDoubleTap by gesturePreferences.reverseDoubleTap.collectAsState()
   val instantControlsToggle by gesturePreferences.instantControlsToggle.collectAsState()
   val doubleTapSeekAreaWidth by gesturePreferences.doubleTapSeekAreaWidth.collectAsState()
+  val touchAction by playerPreferences.touchAction.collectAsState()
   var isDoubleTapSeeking by remember { mutableStateOf(false) }
   var longPressStartTime by remember { mutableStateOf(0L) }
   LaunchedEffect(seekAmount) {
@@ -157,6 +160,8 @@ fun GestureHandler(
   val moveSubtitleByDragging by playerPreferences.moveSubtitleByDragging.collectAsState()
   val pinchToResizeSubtitle by playerPreferences.pinchToResizeSubtitle.collectAsState()
   val horizontalSwipeSensitivity by playerPreferences.horizontalSwipeSensitivity.collectAsState()
+  val playbackSpeedGesture by playerPreferences.playbackSpeedGesture.collectAsState()
+  val playbackSpeedGestureSensitivity by playerPreferences.playbackSpeedGestureSensitivity.collectAsState()
   var isLongPressing by remember { mutableStateOf(false) }
   var isDynamicSpeedControlActive by remember { mutableStateOf(false) }
   var dynamicSpeedStartX by remember { mutableStateOf(0f) }
@@ -216,6 +221,8 @@ fun GestureHandler(
   val currentReverseDoubleTap by rememberUpdatedState(reverseDoubleTap)
   val currentSeekAreaPercent by rememberUpdatedState(doubleTapSeekAreaWidth)
   val currentInstantControlsToggle by rememberUpdatedState(instantControlsToggle)
+  val currentTouchAction by rememberUpdatedState(touchAction)
+  val currentPaused by rememberUpdatedState(paused)
 
   /** The tap viewport is only known inside the pointerInput scope; the config lambda reads it lazily. */
   var tapViewportSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
@@ -241,6 +248,24 @@ fun GestureHandler(
         override fun onHideChrome() = viewModel.hideControls()
 
         override fun onAction(region: TapRegion, isSingleTap: Boolean) {
+          if (isSingleTap) {
+            when (currentTouchAction) {
+              TouchAction.ShowHideInterface -> Unit
+              TouchAction.ShowInterfaceThenPauseResume -> {
+                if (currentControlsShown) viewModel.pauseUnpause() else viewModel.showControls()
+                return
+              }
+              TouchAction.ShowHideInterfaceAndPauseResume -> {
+                viewModel.pauseUnpause()
+                if (currentPaused == true) viewModel.hideControls() else viewModel.showControls()
+                return
+              }
+              TouchAction.PauseResume -> {
+                viewModel.pauseUnpause()
+                return
+              }
+            }
+          }
           val action = when (region) {
             TapRegion.Left -> gesturePreferences.leftSingleActionGesture.get()
             TapRegion.Right -> gesturePreferences.rightSingleActionGesture.get()
@@ -278,6 +303,13 @@ fun GestureHandler(
           seekRight = gesturePreferences.rightSingleActionGesture.get() == SingleActionGesture.Seek,
           doubleTapMs = android.view.ViewConfiguration.getDoubleTapTimeout().toLong(),
           deferToggle = !currentInstantControlsToggle,
+          forceSingleTapAction = currentTouchAction != TouchAction.ShowHideInterface,
+          exclusionZoneFraction = when (currentTouchAction) {
+            TouchAction.PauseResume -> 0.10f
+            TouchAction.ShowHideInterface -> 0.25f
+            TouchAction.ShowInterfaceThenPauseResume,
+            TouchAction.ShowHideInterfaceAndPauseResume -> 0f
+          },
         )
       },
     )
@@ -775,10 +807,90 @@ fun GestureHandler(
           }
         }
       }
-      .pointerInput(pinchToZoomGesture, panAndZoomEnabled, areControlsLocked, isVerticalGestureActive, advancedZoomEnabled) {
-        if (!pinchToZoomGesture || areControlsLocked || isVerticalGestureActive || advancedZoomEnabled) return@pointerInput
+      .pointerInput(pinchToZoomGesture, panAndZoomEnabled, playbackSpeedGesture, areControlsLocked, isVerticalGestureActive, advancedZoomEnabled) {
+        if ((!pinchToZoomGesture && !panAndZoomEnabled && !playbackSpeedGesture) || areControlsLocked || isVerticalGestureActive || advancedZoomEnabled) return@pointerInput
 
         awaitEachGesture {
+          awaitFirstDown(requireUnconsumed = false)
+          if (subtitleGate.isCandidate) return@awaitEachGesture // this touch belongs to a subtitle
+
+          if (playbackSpeedGesture) {
+            var initialDistance = 0f
+            var initialMidX = 0f
+            var initialMidY = 0f
+            var initialFirstY = 0f
+            var initialSecondY = 0f
+            var initialSpeed = 1f
+            var lastSpeed = 1f
+            var gestureStarted = false
+            val activationDistance = 12.dp.toPx()
+            val spacingTolerance = 24.dp.toPx()
+
+            do {
+              val event = awaitPointerEvent()
+              val pressed = event.changes.filter { it.pressed }
+              if (pressed.size == 2) {
+                val first = pressed[0].position
+                val second = pressed[1].position
+                val dx = second.x - first.x
+                val dy = second.y - first.y
+                val distance = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                val midX = (first.x + second.x) / 2f
+                val midY = (first.y + second.y) / 2f
+
+                if (initialDistance == 0f) {
+                  initialDistance = distance
+                  initialMidX = midX
+                  initialMidY = midY
+                  initialFirstY = first.y
+                  initialSecondY = second.y
+                  initialSpeed = (MPVLib.getPropertyFloat("speed") ?: 1f).coerceIn(0.25f, 4f)
+                  lastSpeed = initialSpeed
+                } else {
+                  val firstDeltaY = first.y - initialFirstY
+                  val secondDeltaY = second.y - initialSecondY
+                  val midpointDeltaY = midY - initialMidY
+                  val bothMovingTogether =
+                    abs(firstDeltaY) >= activationDistance &&
+                      abs(secondDeltaY) >= activationDistance &&
+                      firstDeltaY * secondDeltaY > 0f
+                  val distanceIsStable = abs(distance - initialDistance) <= spacingTolerance
+                  val isPredominantlyVertical = abs(midY - initialMidY) > abs(midX - initialMidX) * 1.25f
+
+                  if (!gestureStarted && bothMovingTogether && distanceIsStable && isPredominantlyVertical) {
+                    gestureStarted = true
+                  }
+
+                  if (gestureStarted && distanceIsStable) {
+                    // At sensitivity 50, moving one viewport height maps to a 2.00x change.
+                    val sensitivityMultiplier = playbackSpeedGestureSensitivity / 50f
+                    val viewportHeight = size.height.toFloat().coerceAtLeast(1f)
+                    val target = initialSpeed - (midpointDeltaY / viewportHeight) * 2f * sensitivityMultiplier
+                    val snapped = ((target.coerceIn(0.25f, 4f) * 20f).roundToInt() / 20f)
+                    if (abs(snapped - lastSpeed) >= 0.001f) {
+                      MPVLib.setPropertyFloat("speed", snapped)
+                      lastSpeed = snapped
+                    }
+                    viewModel.playerUpdate.update { PlayerUpdates.TwoFingerPlaybackSpeed(lastSpeed) }
+                    pressed.forEach { it.consume() }
+                  }
+                }
+              } else if (pressed.size < 2 && initialDistance != 0f) {
+                break
+              }
+            } while (event.changes.any { it.pressed })
+
+            if (gestureStarted) {
+              coroutineScope.launch {
+                delay(300)
+                viewModel.playerUpdate.update { current ->
+                  if (current is PlayerUpdates.TwoFingerPlaybackSpeed) PlayerUpdates.None else current
+                }
+              }
+            }
+            return@awaitEachGesture
+          }
+
           var zoom = 0f
           var gestureStarted = false
           var prevDist = 0f
@@ -790,9 +902,6 @@ fun GestureHandler(
           // Video display dims at 1x, cached once per gesture.
           var bw = 0f
           var bh = 0f
-
-          awaitFirstDown(requireUnconsumed = false)
-          if (subtitleGate.isCandidate) return@awaitEachGesture // this touch belongs to a subtitle
 
           do {
             val event = awaitPointerEvent()
@@ -859,8 +968,8 @@ fun GestureHandler(
         }
       }
       // Single-finger pan (only when Pan & Zoom enabled and zoomed in)
-      .pointerInput(panAndZoomEnabled, pinchToZoomGesture, areControlsLocked, isVerticalGestureActive, advancedZoomEnabled) {
-        if (!panAndZoomEnabled || !pinchToZoomGesture || areControlsLocked || isVerticalGestureActive || advancedZoomEnabled) return@pointerInput
+      .pointerInput(panAndZoomEnabled, areControlsLocked, isVerticalGestureActive, advancedZoomEnabled) {
+        if (!panAndZoomEnabled || areControlsLocked || isVerticalGestureActive || advancedZoomEnabled) return@pointerInput
 
         awaitEachGesture {
           val down = awaitFirstDown(requireUnconsumed = false)

@@ -1,25 +1,36 @@
 package xyz.mpv.rex.ui.preferences
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import xyz.mpv.rex.R
 import xyz.mpv.rex.preferences.PlayerPreferences
 import xyz.mpv.rex.preferences.preference.collectAsState
@@ -29,6 +40,7 @@ import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.player.BackgroundPlaybackMode
 import xyz.mpv.rex.ui.player.PlayerOrientation
 import xyz.mpv.rex.ui.player.ResumePlaybackMode
+import xyz.mpv.rex.ui.player.TouchAction
 import xyz.mpv.rex.ui.player.VideoAspect
 import xyz.mpv.rex.ui.utils.LocalBackStack
 import xyz.mpv.rex.ui.utils.navigateBack
@@ -99,6 +111,8 @@ object PlayerPreferencesScreen : Screen {
             val autoPiPOnNavigation by preferences.autoPiPOnNavigation.collectAsState()
             val pipOnHome by preferences.pipOnHome.collectAsState()
             val keepScreenOnWhenPaused by preferences.keepScreenOnWhenPaused.collectAsState()
+            val hideVideoTitleInPlayer by preferences.hideVideoTitleInPlayer.collectAsState()
+            val showScreenshotSavedToast by preferences.showScreenshotSavedToast.collectAsState()
 
             GroupedListColumn {
               GroupedPreferenceCard(
@@ -311,7 +325,7 @@ object PlayerPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
-                position = GroupPosition.LAST,
+                position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_keep_screen_on_when_paused_title,
               ) {
                 SwitchPreference(
@@ -329,6 +343,159 @@ object PlayerPreferencesScreen : Screen {
                   },
                 )
               }
+
+              GroupedPreferenceCard(
+                position = GroupPosition.MIDDLE,
+                highlightKey = R.string.pref_hide_video_title_in_player,
+              ) {
+                SwitchPreference(
+                  value = hideVideoTitleInPlayer,
+                  onValueChange = preferences.hideVideoTitleInPlayer::set,
+                  title = { Text(stringResource(R.string.pref_hide_video_title_in_player)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_hide_video_title_in_player_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
+              }
+
+              GroupedPreferenceCard(
+                position = GroupPosition.LAST,
+                highlightKey = R.string.pref_show_screenshot_saved_toast,
+              ) {
+                SwitchPreference(
+                  value = showScreenshotSavedToast,
+                  onValueChange = preferences.showScreenshotSavedToast::set,
+                  title = { Text(stringResource(R.string.pref_show_screenshot_saved_toast)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_show_screenshot_saved_toast_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
+              }
+            }
+          }
+
+          // Interaction Section
+          item {
+            PreferenceSectionHeader(title = stringResource(R.string.pref_player_interaction))
+          }
+
+          item {
+            val touchAction by preferences.touchAction.collectAsState()
+            val interfaceAutoHideOnResume by preferences.interfaceAutoHideOnResume.collectAsState()
+            val playerTimeToDisappear by preferences.playerTimeToDisappear.collectAsState()
+            val timeoutSeconds = (playerTimeToDisappear / 1000).coerceIn(1, 60)
+            var showTimeoutDialog by remember { mutableStateOf(false) }
+            var timeoutText by remember { mutableStateOf("") }
+            val parsedTimeout = timeoutText.toIntOrNull()
+            val isTimeoutValid = parsedTimeout != null && parsedTimeout in 1..60
+
+            GroupedListColumn {
+              GroupedPreferenceCard(
+                position = GroupPosition.FIRST,
+                highlightKey = R.string.pref_touch_action,
+              ) {
+                ListPreference(
+                  value = touchAction,
+                  onValueChange = preferences.touchAction::set,
+                  values = TouchAction.entries,
+                  valueToText = { AnnotatedString(context.getString(it.titleRes)) },
+                  title = { Text(stringResource(R.string.pref_touch_action)) },
+                  summary = {
+                    Text(
+                      text = stringResource(touchAction.titleRes),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
+              }
+
+              GroupedPreferenceCard(
+                position = GroupPosition.MIDDLE,
+                highlightKey = R.string.pref_interface_auto_hide_on_resume,
+              ) {
+                SwitchPreference(
+                  value = interfaceAutoHideOnResume,
+                  onValueChange = { enabled ->
+                    preferences.interfaceAutoHideOnResume.set(enabled)
+                    if (enabled && playerTimeToDisappear == 0) {
+                      preferences.playerTimeToDisappear.set(4_000)
+                    }
+                  },
+                  title = { Text(stringResource(R.string.pref_interface_auto_hide_on_resume)) },
+                  summary = {
+                    Text(
+                      text = stringResource(
+                        if (interfaceAutoHideOnResume) {
+                          R.string.pref_interface_auto_hide_on_resume_summary_on
+                        } else {
+                          R.string.pref_interface_auto_hide_on_resume_summary_off
+                        },
+                      ),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
+              }
+
+              GroupedPreferenceCard(
+                position = GroupPosition.LAST,
+                highlightKey = R.string.pref_interface_auto_hide_duration,
+              ) {
+                ListItem(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = interfaceAutoHideOnResume) {
+                      timeoutText = timeoutSeconds.toString()
+                      showTimeoutDialog = true
+                    },
+                  headlineContent = { Text(stringResource(R.string.pref_interface_auto_hide_duration)) },
+                  supportingContent = {
+                    Text(
+                      text = stringResource(R.string.pref_interface_auto_hide_duration_summary, timeoutSeconds),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
+              }
+            }
+
+            if (showTimeoutDialog) {
+              AlertDialog(
+                onDismissRequest = { showTimeoutDialog = false },
+                title = { Text(stringResource(R.string.pref_interface_auto_hide_duration)) },
+                text = {
+                  OutlinedTextField(
+                    value = timeoutText,
+                    onValueChange = { timeoutText = it.filter(Char::isDigit) },
+                    label = { Text(stringResource(R.string.unit_seconds)) },
+                    supportingText = { Text(stringResource(R.string.pref_interface_auto_hide_duration_hint)) },
+                    isError = timeoutText.isNotBlank() && !isTimeoutValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                  )
+                },
+                confirmButton = {
+                  TextButton(
+                    enabled = isTimeoutValid,
+                    onClick = {
+                      preferences.playerTimeToDisappear.set(parsedTimeout!! * 1000)
+                      showTimeoutDialog = false
+                    },
+                  ) { Text(stringResource(R.string.generic_ok)) }
+                },
+                dismissButton = {
+                  TextButton(onClick = { showTimeoutDialog = false }) {
+                    Text(stringResource(R.string.generic_cancel))
+                  }
+                },
+              )
             }
           }
 

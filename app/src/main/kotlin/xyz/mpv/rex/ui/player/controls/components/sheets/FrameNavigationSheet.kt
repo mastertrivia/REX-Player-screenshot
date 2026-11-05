@@ -90,6 +90,7 @@ fun FrameNavigationSheet(
   var isFrameStepping by remember { mutableStateOf(false) }
   val playerPreferences: PlayerPreferences = koinInject()
   val includeSubtitlesPrefState by playerPreferences.includeSubtitlesInSnapshot.collectAsState()
+  val showScreenshotSavedToast by playerPreferences.showScreenshotSavedToast.collectAsState()
   var includeSubtitlesInSnapshot by remember { mutableStateOf(includeSubtitlesPrefState) }
   LaunchedEffect(includeSubtitlesPrefState) {
     includeSubtitlesInSnapshot = includeSubtitlesPrefState
@@ -185,7 +186,7 @@ fun FrameNavigationSheet(
         coroutineScope.launch {
           isSnapshotLoading = true
           try {
-            takeSnapshot(context, includeSubtitlesInSnapshot)
+            takeSnapshot(context, includeSubtitlesInSnapshot, showScreenshotSavedToast)
           } finally {
             isSnapshotLoading = false
           }
@@ -609,6 +610,7 @@ private fun IncludeSubsToggle(
 private suspend fun takeSnapshot(
   context: Context,
   includeSubtitles: Boolean,
+  showSavedToast: Boolean,
 ) {
   withContext(Dispatchers.IO) {
     try {
@@ -685,14 +687,15 @@ private suspend fun takeSnapshot(
           // Delete temp file
           tempFile.delete()
 
-          // Show success toast
-          withContext(Dispatchers.Main) {
-            Toast
-              .makeText(
-                context,
-                context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
-                Toast.LENGTH_SHORT,
-              ).show()
+          if (showSavedToast) {
+            withContext(Dispatchers.Main) {
+              Toast
+                .makeText(
+                  context,
+                  context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
+                  Toast.LENGTH_SHORT,
+                ).show()
+            }
           }
         } else {
           throw Exception(
@@ -729,13 +732,15 @@ private suspend fun takeSnapshot(
           null,
         )
 
-        withContext(Dispatchers.Main) {
-          Toast
-            .makeText(
-              context,
-              context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
-              Toast.LENGTH_SHORT,
-            ).show()
+        if (showSavedToast) {
+          withContext(Dispatchers.Main) {
+            Toast
+              .makeText(
+                context,
+                context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
+                Toast.LENGTH_SHORT,
+              ).show()
+          }
         }
       }
     } catch (e: Exception) {

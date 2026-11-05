@@ -138,6 +138,22 @@ fun TextPlayerUpdate(
 }
 
 @Composable
+fun GestureSpeedPlayerUpdate(
+  speed: Float,
+  modifier: Modifier = Modifier,
+) {
+  PlayerUpdate(modifier) {
+    Text(
+      text = String.format("%.2fx", speed),
+      fontSize = 34.sp,
+      fontWeight = FontWeight.ExtraBold,
+      textAlign = TextAlign.Center,
+      style = MaterialTheme.typography.headlineMedium,
+    )
+  }
+}
+
+@Composable
 fun LockHint(
   text: String,
   modifier: Modifier = Modifier,

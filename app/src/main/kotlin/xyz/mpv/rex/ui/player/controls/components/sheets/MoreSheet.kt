@@ -798,7 +798,13 @@ fun GesturesTab() {
       label = stringResource(R.string.pref_player_gestures_pinch_to_zoom),
       description = stringResource(R.string.pref_player_gestures_pinch_to_zoom),
       checked = pinchToZoomGesture,
-      onCheckedChange = { playerPreferences.pinchToZoomGesture.set(it) }
+      onCheckedChange = { enabled ->
+        playerPreferences.pinchToZoomGesture.set(enabled)
+        if (enabled) {
+          playerPreferences.panAndZoomEnabled.set(false)
+          playerPreferences.playbackSpeedGesture.set(false)
+        }
+      }
     )
 
     InteractionSwitch(
@@ -861,7 +867,13 @@ fun GesturesTab() {
       label = stringResource(R.string.pref_player_gestures_pan_and_zoom),
       description = stringResource(R.string.pref_player_gestures_pan_and_zoom_summary),
       checked = panAndZoomEnabled,
-      onCheckedChange = { playerPreferences.panAndZoomEnabled.set(it) }
+      onCheckedChange = { enabled ->
+        playerPreferences.panAndZoomEnabled.set(enabled)
+        if (enabled) {
+          playerPreferences.pinchToZoomGesture.set(false)
+          playerPreferences.playbackSpeedGesture.set(false)
+        }
+      }
     )
   }
 }
@@ -1182,8 +1194,9 @@ private fun ResumePlaybackModePreferenceItem() {
 private fun PlayerTimeToDisappearPreferenceItem() {
   val playerPreferences = koinInject<PlayerPreferences>()
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
-  val predefinedTimeValues = listOf(0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000)
-  val isCustomTimeValue = !predefinedTimeValues.contains(playerTimeToDisappear)
+  val interfaceAutoHideOnResume by playerPreferences.interfaceAutoHideOnResume.collectAsState()
+  val predefinedTimeValues = listOf(0, 1000, 2000, 3000, 4000, 5000)
+  val isCustomTimeValue = interfaceAutoHideOnResume && !predefinedTimeValues.contains(playerTimeToDisappear)
   val offLabel = stringResource(R.string.generic_off)
   val customLabel = stringResource(R.string.generic_custom)
   var showDialog by remember { mutableStateOf(false) }
@@ -1208,7 +1221,7 @@ private fun PlayerTimeToDisappearPreferenceItem() {
       supportingContent = {
         Text(
           text = when {
-            playerTimeToDisappear == 0 -> offLabel
+            !interfaceAutoHideOnResume -> offLabel
             isCustomTimeValue -> stringResource(
               R.string.pref_player_display_custom_time_summary,
               playerTimeToDisappear
@@ -1243,7 +1256,11 @@ private fun PlayerTimeToDisappearPreferenceItem() {
             .verticalScroll(rememberScrollState())
         ) {
           (predefinedTimeValues + listOf(-1)).forEach { value ->
-            val isSelected = if (value == -1) isCustomTimeValue else playerTimeToDisappear == value
+            val isSelected = when {
+              value == -1 -> isCustomTimeValue
+              value == 0 -> !interfaceAutoHideOnResume
+              else -> interfaceAutoHideOnResume && playerTimeToDisappear == value
+            }
             val labelText = when (value) {
               0 -> offLabel
               -1 -> customLabel
@@ -1257,8 +1274,12 @@ private fun PlayerTimeToDisappearPreferenceItem() {
                     customTimeValue = playerTimeToDisappear.toString()
                     showDialog = false
                     showCustomDialog = true
+                  } else if (value == 0) {
+                    playerPreferences.interfaceAutoHideOnResume.set(false)
+                    showDialog = false
                   } else {
                     playerPreferences.playerTimeToDisappear.set(value)
+                    playerPreferences.interfaceAutoHideOnResume.set(true)
                     showDialog = false
                   }
                 }
@@ -1316,8 +1337,9 @@ private fun PlayerTimeToDisappearPreferenceItem() {
         TextButton(
           onClick = {
             val value = customTimeValue.toIntOrNull()
-            if (value != null && value in 0..1000000000) {
+            if (value != null && value in 1000..60000) {
               playerPreferences.playerTimeToDisappear.set(value)
+              playerPreferences.interfaceAutoHideOnResume.set(true)
               showCustomDialog = false
             }
           }

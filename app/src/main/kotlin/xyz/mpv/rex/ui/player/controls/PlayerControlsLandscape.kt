@@ -49,8 +49,10 @@ fun TopLeftPlayerControlsLandscape(
   viewModel: PlayerViewModel,
 ) {
   val appearancePreferences = org.koin.compose.koinInject<xyz.mpv.rex.preferences.AppearancePreferences>()
+  val playerPreferences = org.koin.compose.koinInject<xyz.mpv.rex.preferences.PlayerPreferences>()
   val matchTheme by appearancePreferences.matchPlayerControlsToTheme.collectAsState()
   val enableGlass by appearancePreferences.enableGlassPlayerControls.collectAsState()
+  val hideVideoTitle by playerPreferences.hideVideoTitleInPlayer.collectAsState()
   val playlistModeEnabled = viewModel.hasPlaylistSupport()
   val clickEvent = LocalPlayerButtonsClickEvent.current
 
@@ -72,56 +74,58 @@ fun TopLeftPlayerControlsLandscape(
       modifier = Modifier.size(38.dp),
     )
 
-    if (!hideBackground) {
-      Box(
-        modifier = Modifier
-          .width(1.dp)
-          .height(16.dp)
-          .background(
-            if (enableGlass) Color.White.copy(alpha = 0.18f)
-            else if (matchTheme) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-          )
-      )
-    }
-
-    val titleInteractionSource = remember { MutableInteractionSource() }
-
-    Box(
-      modifier =
-        Modifier
-          .fillMaxHeight()
-          .clip(RoundedCornerShape(14.dp))
-          .clickable(
-            interactionSource = titleInteractionSource,
-            indication = ripple(bounded = true),
-            enabled = playlistModeEnabled,
-            onClick = {
-              clickEvent()
-              onOpenSheet(Sheets.Playlist)
-            },
-          )
-          .padding(horizontal = 8.dp),
-      contentAlignment = Alignment.CenterStart,
-    ) {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          mediaTitle ?: "",
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.weight(1f, fill = false),
+    if (!hideVideoTitle) {
+      if (!hideBackground) {
+        Box(
+          modifier = Modifier
+            .width(1.dp)
+            .height(16.dp)
+            .background(
+              if (enableGlass) Color.White.copy(alpha = 0.18f)
+              else if (matchTheme) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+              else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            )
         )
-        viewModel.getPlaylistInfo()?.let { playlistInfo ->
+      }
+
+      val titleInteractionSource = remember { MutableInteractionSource() }
+
+      Box(
+        modifier =
+          Modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(
+              interactionSource = titleInteractionSource,
+              indication = ripple(bounded = true),
+              enabled = playlistModeEnabled,
+              onClick = {
+                clickEvent()
+                onOpenSheet(Sheets.Playlist)
+              },
+            )
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.CenterStart,
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
           Text(
-            " • $playlistInfo",
+            mediaTitle ?: "",
             maxLines = 1,
-            overflow = TextOverflow.Visible,
-            style = MaterialTheme.typography.bodySmall,
-            color = contentColor.copy(alpha = 0.75f),
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f, fill = false),
           )
+          viewModel.getPlaylistInfo()?.let { playlistInfo ->
+            Text(
+              " • $playlistInfo",
+              maxLines = 1,
+              overflow = TextOverflow.Visible,
+              style = MaterialTheme.typography.bodySmall,
+              color = contentColor.copy(alpha = 0.75f),
+            )
+          }
         }
       }
     }

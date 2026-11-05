@@ -11,6 +11,7 @@ import xyz.mpv.rex.ui.player.PlaybackControlsPosition
 import xyz.mpv.rex.ui.player.PlayerOrientation
 import xyz.mpv.rex.ui.player.RepeatMode
 import xyz.mpv.rex.ui.player.ResumePlaybackMode
+import xyz.mpv.rex.ui.player.TouchAction
 import xyz.mpv.rex.ui.player.VideoAspect
 
 class PlayerPreferences(
@@ -65,11 +66,25 @@ class PlayerPreferences(
   val brightnessGesture = preferenceStore.getBoolean("gestures_brightness", true)
   val volumeGesture = preferenceStore.getBoolean("volume_brightness", true)
   val pinchToZoomGesture = preferenceStore.getBoolean("pinch_to_zoom_gesture", true)
+  val panAndZoomEnabled = preferenceStore.getBoolean("pan_and_zoom_enabled", false)
+  val playbackSpeedGesture = preferenceStore.getBoolean("playback_speed_gesture", false)
+  val playbackSpeedGestureSensitivity = preferenceStore.getInt("playback_speed_gesture_sensitivity", 50)
   val horizontalSwipeToSeek = preferenceStore.getBoolean("horizontal_swipe_to_seek", true)
   val swipeToSubtitleSeek = preferenceStore.getBoolean("swipe_to_subtitle_seek", true)
   val moveSubtitleByDragging = preferenceStore.getBoolean("move_subtitle_by_dragging", true)
   val pinchToResizeSubtitle = preferenceStore.getBoolean("pinch_to_resize_subtitle", true)
   val horizontalSwipeSensitivity = preferenceStore.getFloat("horizontal_swipe_sensitivity", 0.05f)
+
+  init {
+    // Reconcile preferences created by older versions before the three gesture modes were exclusive.
+    when {
+      playbackSpeedGesture.get() -> {
+        pinchToZoomGesture.set(false)
+        panAndZoomEnabled.set(false)
+      }
+      panAndZoomEnabled.get() -> pinchToZoomGesture.set(false)
+    }
+  }
 
   val customAspectRatios = preferenceStore.getStringSet("custom_aspect_ratios", emptySet())
 
@@ -102,11 +117,16 @@ class PlayerPreferences(
   val reduceMotion = preferenceStore.getBoolean("reduce_motion", true)
   val playerGradientOpacity = preferenceStore.getFloat("player_gradient_opacity", 1.0f)
   val playerTimeToDisappear = preferenceStore.getInt("player_time_to_disappear", 4000)
+  val touchAction = preferenceStore.getEnum("touch_action", TouchAction.ShowHideInterface)
+  // Preserve an existing user's explicit legacy "off" choice when introducing the switch.
+  val interfaceAutoHideOnResume =
+    preferenceStore.getBoolean("interface_auto_hide_on_resume", playerTimeToDisappear.get() > 0)
+  val showScreenshotSavedToast = preferenceStore.getBoolean("show_screenshot_saved_toast", true)
+  val hideVideoTitleInPlayer = preferenceStore.getBoolean("hide_video_title_in_player", false)
 
   val defaultVideoZoom = preferenceStore.getFloat("default_video_zoom", 0f)
   val defaultVideoPanX = preferenceStore.getFloat("default_video_pan_x", 0f)
   val defaultVideoPanY = preferenceStore.getFloat("default_video_pan_y", 0f)
-  val panAndZoomEnabled = preferenceStore.getBoolean("pan_and_zoom_enabled", false)
 
   val advancedZoomEnabled = preferenceStore.getBoolean("advanced_zoom_enabled", false)
   val defaultVideoScaleX = preferenceStore.getFloat("default_video_scale_x", 1f)
