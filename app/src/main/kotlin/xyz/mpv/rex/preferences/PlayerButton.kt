@@ -136,7 +136,9 @@ val ScreenshotCaptureIcon: ImageVector by lazy {
       moveTo(8f, 20f); lineTo(4f, 20f); lineTo(4f, 16f)
       moveTo(7f, 10f); lineTo(9f, 10f); lineTo(10f, 8.5f); lineTo(14f, 8.5f); lineTo(15f, 10f)
       lineTo(17f, 10f); lineTo(17f, 16f); lineTo(7f, 16f); close()
-      moveTo(14f, 13f); arcTo(10f, 11f, 14f, 15f, 0f, 360f, false)
+      moveTo(14f, 13f)
+      arcTo(2f, 2f, 0f, false, true, 10f, 13f)
+      arcTo(2f, 2f, 0f, false, true, 14f, 13f)
     }
   }.build()
 }

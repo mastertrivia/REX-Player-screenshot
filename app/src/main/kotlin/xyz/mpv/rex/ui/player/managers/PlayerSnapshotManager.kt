@@ -198,10 +198,11 @@ class PlayerSnapshotManager(
       var previousSize = -1L
       while (true) {
         val currentSize = if (file.exists()) file.length() else 0L
-        if (currentSize > 0L && currentSize == previousSize) return@withTimeoutOrNull true
+        if (currentSize > 0L && currentSize == previousSize) break
         previousSize = currentSize
         delay(FILE_READY_POLL_INTERVAL_MS)
       }
+      true
     } ?: false
 
   private companion object {
